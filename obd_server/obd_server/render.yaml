@@ -1,0 +1,24 @@
+# Blueprint для Render: створює безкоштовний веб-сервіс із цього репозиторію.
+services:
+  - type: web
+    name: obd-health-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: DATABASE_URL        # рядок підключення з Neon
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: BAZAGAI_API_KEY
+        sync: false
+      - key: AUTODEV_API_KEY
+        sync: false

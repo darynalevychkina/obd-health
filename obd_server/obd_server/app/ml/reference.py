@@ -2,7 +2,9 @@
 поки немає власного профілю. Норми лежать у таблицях reference_profiles / reference_norms."""
 from __future__ import annotations
 
+import json
 import logging
+import urllib.request
 
 from sqlalchemy import select
 
@@ -11,7 +13,7 @@ from ..models import ReferenceNorm, ReferenceProfile, Vehicle
 
 log = logging.getLogger("uvicorn.error")
 
-SRC = "Типові експлуатаційні значення (технічна література виробників, SAE J1979); орієнтовні"
+SRC = "Орієнтовні типові значення (експертна оцінка автора); уточнюються власним профілем авто"
 
 # (назва, паливо, об'єм від, об'єм до, рік від, рік до,
 #  холостий (мін, макс), АКБ під час руху (мін, макс), ОР двигуна (мін усталена, макс), LTFT (±))
@@ -46,6 +48,21 @@ def seed(db) -> None:
     log.info("Довідкові норми: додано %d профілів", len(PROFILES))
 
 
+VPIC_URL = "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/{vin}?format=json"
+
+
+def decode_vin(vin: str) -> dict:
+    """Об'єм двигуна за VIN із відкритого API NHTSA vPIC. Порожній словник, якщо даних немає."""
+    try:
+        with urllib.request.urlopen(VPIC_URL.format(vin=vin), timeout=4) as r:
+            row = json.load(r)["Results"][0]
+        vol = float(row.get("DisplacementL") or 0)
+        return {"engine_vol_l": round(vol, 1)} if 0.5 <= vol <= 9.9 else {}
+    except Exception as e:  # немає мережі, невідомий VIN, зміна формату
+        log.warning("vPIC недоступний: %s", e)
+        return {}
+
+
 def pick_profile(db, vehicle: Vehicle) -> ReferenceProfile | None:
     cands = db.scalars(select(ReferenceProfile).where(ReferenceProfile.fuel == vehicle.fuel)).all()
     vol = float(vehicle.engine_vol_l) if vehicle.engine_vol_l is not None else None
@@ -71,6 +88,10 @@ def norms_for(db, vehicle: Vehicle) -> dict[str, float]:
     try:
         prof = db.get(ReferenceProfile, vehicle.reference_profile_id) if vehicle.reference_profile_id else None
         if prof is None:
+            if vehicle.engine_vol_l is None and vehicle.vin:
+                info = decode_vin(vehicle.vin)
+                if info:
+                    vehicle.engine_vol_l = info["engine_vol_l"]
             prof = pick_profile(db, vehicle)
             if prof is None:
                 return {}

@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from .db import engine
+from .db import SessionLocal, engine
+from .ml import reference
 from .routers import auth, catalog, trips, vehicles
 
 
@@ -16,6 +17,11 @@ async def lifespan(_app: FastAPI):
             conn.execute(text("ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS color TEXT"))
     except Exception as e:  # база може бути ще порожньою (схему не застосовано) або недоступною
         logging.getLogger("uvicorn.error").warning("Авто-міграція пропущена: %s", e)
+    try:
+        with SessionLocal() as db:
+            reference.seed(db)
+    except Exception as e:
+        logging.getLogger("uvicorn.error").warning("Довідкові норми не завантажено: %s", e)
     yield
 
 

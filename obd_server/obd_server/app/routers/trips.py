@@ -6,6 +6,7 @@ from ..config import MIN_BASELINE_DURATION_S, MIN_BASELINE_READINGS, REFERENCE_T
 from ..db import SessionLocal
 from ..deps import CurrentUser, DbSession
 from ..ml import forecast as forecast_mod
+from ..ml import reference
 from ..ml.scoring import analyze
 from ..ml.service import history_features, to_reading
 from ..models import Reading, Trip, TripEvent, Vehicle
@@ -81,7 +82,8 @@ def upload_trip(data: TripIn, response: Response, background: BackgroundTasks, d
     try:
         rows = [to_reading(r, data.started_at) for r in data.readings]
         hist = history_features(db, vehicle.id, trip.id) if mode == "BLENDED" else []
-        health, findings, _ = analyze(rows, hist, vehicle.fuel, use_ml=(mode == "BLENDED"))
+        norms = reference.norms_for(db, vehicle)
+        health, findings, _ = analyze(rows, hist, vehicle.fuel, use_ml=(mode == "BLENDED"), norms=norms)
         trip.health_index = health
         ev_ts = data.ended_at or data.started_at
         if findings:

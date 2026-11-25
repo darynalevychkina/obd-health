@@ -44,7 +44,7 @@ def _ramp(v: float, pts: list[tuple[float, float]]) -> float:
     return float(pts[-1][1])
 
 
-def penalty_from_features(f: dict[str, float]) -> float:
+def penalty_from_features(f: dict[str, float], norms: dict[str, float] | None = None) -> float:
     total = 0.0
     for k, pts in CURVES_UP.items():
         v = f.get(k)
@@ -59,7 +59,13 @@ def penalty_from_features(f: dict[str, float]) -> float:
         total += _ramp(float(v), BATTERY_HIGH)
     v = f.get("idle_rpm")
     if not is_nan(v):
-        total += max(_ramp(float(v), IDLE_LOW), _ramp(float(v), IDLE_HIGH))
+        lo, hi = IDLE_LOW, IDLE_HIGH
+        if norms and "idle_low" in norms and "idle_high" in norms:
+            # криві холостих ходу зсуваються під довідкову норму класу авто
+            a, b = norms["idle_low"], norms["idle_high"]
+            lo = [(a + 150, 0), (a, 8), (a - 150, 15)]
+            hi = [(b - 200, 0), (b, 8), (b + 400, 15)]
+        total += max(_ramp(float(v), lo), _ramp(float(v), hi))
     return total
 
 
@@ -74,8 +80,8 @@ def drift_penalty(profile: Profile, feats: dict[str, float]) -> float:
 
 
 def health_index(findings: list[Finding], feats: dict[str, float] | None = None,
-                 ml_drift: float = 0.0) -> int:
-    penalty = penalty_from_features(feats) if feats else 0.0
+                 ml_drift: float = 0.0, norms: dict[str, float] | None = None) -> int:
+    penalty = penalty_from_features(feats, norms) if feats else 0.0
     ml_flagged = any(f.code == "ANOMALY_ML" for f in findings)
     if ml_flagged:
         penalty += ML_FLAGGED
@@ -90,7 +96,8 @@ def health_index(findings: list[Finding], feats: dict[str, float] | None = None,
     return int(max(0, min(100, round(score))))
 
 
-def analyze(rows, history_features: list[dict[str, float]], fuel: str, use_ml: bool):
+def analyze(rows, history_features: list[dict[str, float]], fuel: str, use_ml: bool,
+            norms: dict[str, float] | None = None):
     """rows: список Reading цієї поїздки. history_features: ознаки попередніх нормальних поїздок.
 
     Повертає (індекс або None, список знахідок, ознаки поїздки).
@@ -98,7 +105,7 @@ def analyze(rows, history_features: list[dict[str, float]], fuel: str, use_ml: b
     if fuel == "ELECTRIC" or len(rows) < MIN_READINGS_FOR_SCORE:
         return None, [], {}
     feats = extract(rows)
-    findings = evaluate(feats, fuel)
+    findings = evaluate(feats, fuel, norms)
     drift = 0.0
     if use_ml:
         profile = Profile(history_features)
@@ -107,4 +114,4 @@ def analyze(rows, history_features: list[dict[str, float]], fuel: str, use_ml: b
             findings.append(ml)
         if profile.ready:
             drift = drift_penalty(profile, feats)
-    return health_index(findings, feats, drift), findings, feats
+    return health_index(findings, feats, drift, norms), findings, feats

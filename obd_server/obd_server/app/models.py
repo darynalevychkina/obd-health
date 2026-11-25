@@ -61,6 +61,30 @@ class Vehicle(Base):
     trips: Mapped[list["Trip"]] = relationship(back_populates="vehicle")
 
 
+class ReferenceProfile(Base):
+    __tablename__ = "reference_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+    fuel: Mapped[str] = mapped_column(FuelType)
+    engine_vol_min: Mapped[Decimal | None] = mapped_column(Numeric(3, 1))
+    engine_vol_max: Mapped[Decimal | None] = mapped_column(Numeric(3, 1))
+    year_from: Mapped[int | None] = mapped_column(SmallInteger)
+    year_to: Mapped[int | None] = mapped_column(SmallInteger)
+
+
+class ReferenceNorm(Base):
+    __tablename__ = "reference_norms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("reference_profiles.id", ondelete="CASCADE"))
+    metric: Mapped[str] = mapped_column(String(32))
+    state: Mapped[str] = mapped_column(String(16))
+    min_value: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    max_value: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    source: Mapped[str] = mapped_column(Text)
+
+
 class Trip(Base):
     __tablename__ = "trips"
 

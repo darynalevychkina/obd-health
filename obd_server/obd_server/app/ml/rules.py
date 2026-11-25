@@ -29,8 +29,8 @@ NORMS = {
 }
 
 
-def evaluate(f: dict[str, float], fuel: str = "PETROL") -> list[Finding]:
-    n = NORMS
+def evaluate(f: dict[str, float], fuel: str = "PETROL", norms: dict[str, float] | None = None) -> list[Finding]:
+    n = {**NORMS, **(norms or {})}
     out: list[Finding] = []
     if fuel == "ELECTRIC":
         return out

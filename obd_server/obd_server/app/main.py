@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from .db import SessionLocal, engine
 from .ml import reference
-from .routers import auth, catalog, trips, vehicles
+from .routers import auth, catalog, dtc, trips, vehicles
 
 
 @asynccontextmanager
@@ -15,11 +15,13 @@ async def lifespan(_app: FastAPI):
     try:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS color TEXT"))
+            conn.execute(text("ALTER TABLE dtc_events ADD COLUMN IF NOT EXISTS kind VARCHAR(10)"))
     except Exception as e:  # база може бути ще порожньою (схему не застосовано) або недоступною
         logging.getLogger("uvicorn.error").warning("Авто-міграція пропущена: %s", e)
     try:
         with SessionLocal() as db:
             reference.seed(db)
+            dtc.seed_dictionary(db)
     except Exception as e:
         logging.getLogger("uvicorn.error").warning("Довідкові норми не завантажено: %s", e)
     yield
@@ -30,6 +32,7 @@ app = FastAPI(title="OBD Health API", version="0.1.0", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(vehicles.router)
 app.include_router(trips.router)
+app.include_router(dtc.router)
 app.include_router(catalog.router)
 
 

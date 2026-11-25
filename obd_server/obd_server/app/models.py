@@ -85,6 +85,26 @@ class ReferenceNorm(Base):
     source: Mapped[str] = mapped_column(Text)
 
 
+class DtcDictionary(Base):
+    __tablename__ = "dtc_dictionary"
+
+    code: Mapped[str] = mapped_column(String(5), primary_key=True)
+    description_uk: Mapped[str] = mapped_column(Text)
+    description_en: Mapped[str] = mapped_column(Text)
+
+
+class DtcEvent(Base):
+    __tablename__ = "dtc_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id", ondelete="CASCADE"))
+    trip_id: Mapped[int | None] = mapped_column(ForeignKey("trips.id", ondelete="SET NULL"))
+    code: Mapped[str] = mapped_column(ForeignKey("dtc_dictionary.code"))
+    kind: Mapped[str | None] = mapped_column(String(10))
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Trip(Base):
     __tablename__ = "trips"
 
